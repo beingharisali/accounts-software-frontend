@@ -1,33 +1,41 @@
-import { useState, useRef } from 'react';
-import { useStudents } from '@/context/StudentContext';
-import { useRole } from '@/context/RoleContext';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Search, Printer, GraduationCap, Download, FileText } from 'lucide-react';
-import { Student } from '@/types/student';
-import { formatCurrency } from '@/lib/helpers';
+import { useState, useRef } from "react";
+import { useStudents } from "@/context/StudentContext";
+import { useRole } from "@/context/RoleContext";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Search,
+  Printer,
+  GraduationCap,
+  Download,
+  FileText,
+} from "lucide-react";
+import { Student } from "@/types/student";
+import { formatCurrency } from "@/lib/helpers";
 
 export default function PrintReceipt() {
   const { students } = useStudents();
   const { hasPermission } = useRole();
-  const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const receiptRef = useRef<HTMLDivElement>(null);
 
-  const searchResults = searchTerm.length >= 2
-    ? students.filter(s => 
-        s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        s.number.includes(searchTerm) ||
-        s.cnic.includes(searchTerm)
-      )
-    : [];
+  const searchResults =
+    searchTerm.length >= 2
+      ? students.filter(
+          (s) =>
+            s.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            s.number.includes(searchTerm) ||
+            s.cnic.includes(searchTerm),
+        )
+      : [];
 
   const handlePrint = () => {
     if (!receiptRef.current) return;
-    
+
     const printContent = receiptRef.current.innerHTML;
-    const printWindow = window.open('', '', 'width=800,height=600');
-    
+    const printWindow = window.open("", "", "width=800,height=600");
+
     if (printWindow) {
       printWindow.document.write(`
         <html>
@@ -173,7 +181,7 @@ export default function PrintReceipt() {
     }
   };
 
-  if (!hasPermission('canPrintReceipts')) {
+  if (!hasPermission("canPrintReceipts")) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center">
@@ -207,16 +215,16 @@ export default function PrintReceipt() {
             className="pl-9"
           />
         </div>
-        
+
         {/* Search Results */}
         {searchResults.length > 0 && (
           <div className="mt-2 bg-card border border-border rounded-lg shadow-lg overflow-hidden">
-            {searchResults.slice(0, 5).map(student => (
+            {searchResults.slice(0, 5).map((student) => (
               <button
                 key={student.id}
                 onClick={() => {
                   setSelectedStudent(student);
-                  setSearchTerm('');
+                  setSearchTerm("");
                 }}
                 className="w-full px-4 py-3 text-left hover:bg-muted/50 transition-colors border-b border-border last:border-0"
               >
@@ -242,8 +250,10 @@ export default function PrintReceipt() {
                   <div className="logo w-14 h-14 bg-card rounded-xl mx-auto mb-3 flex items-center justify-center">
                     <GraduationCap className="w-8 h-8 text-primary" />
                   </div>
-                  <h2 className="company-name text-xl font-bold">Ideoversity</h2>
-                  <p className="tagline text-xs opacity-90">Learn. Grow. Succeed.</p>
+                  <h2 className="company-name text-xl font-bold">Software</h2>
+                  <p className="tagline text-xs opacity-90">
+                    Learn. Grow. Succeed.
+                  </p>
                   <div className="receipt-title mt-3 pt-3 border-t border-primary-foreground/20 text-sm font-semibold">
                     PAYMENT RECEIPT
                   </div>
@@ -258,15 +268,22 @@ export default function PrintReceipt() {
                     </h4>
                     <div className="space-y-2">
                       {[
-                        { label: 'Name', value: selectedStudent.name },
-                        { label: 'Phone', value: selectedStudent.number },
-                        { label: 'CNIC', value: selectedStudent.cnic },
-                        { label: 'Email', value: selectedStudent.email },
-                        { label: 'Address', value: selectedStudent.address },
-                      ].map(item => (
-                        <div key={item.label} className="info-row flex justify-between py-1.5 border-b border-border last:border-0">
-                          <span className="label text-muted-foreground text-sm">{item.label}</span>
-                          <span className="value font-medium text-sm">{item.value}</span>
+                        { label: "Name", value: selectedStudent.name },
+                        { label: "Phone", value: selectedStudent.number },
+                        { label: "CNIC", value: selectedStudent.cnic },
+                        { label: "Email", value: selectedStudent.email },
+                        { label: "Address", value: selectedStudent.address },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className="info-row flex justify-between py-1.5 border-b border-border last:border-0"
+                        >
+                          <span className="label text-muted-foreground text-sm">
+                            {item.label}
+                          </span>
+                          <span className="value font-medium text-sm">
+                            {item.value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -279,12 +296,19 @@ export default function PrintReceipt() {
                     </h4>
                     <div className="space-y-2">
                       {[
-                        { label: 'Course', value: selectedStudent.course },
-                        { label: 'Batch', value: selectedStudent.batch },
-                      ].map(item => (
-                        <div key={item.label} className="info-row flex justify-between py-1.5 border-b border-border last:border-0">
-                          <span className="label text-muted-foreground text-sm">{item.label}</span>
-                          <span className="value font-medium text-sm">{item.value}</span>
+                        { label: "Course", value: selectedStudent.course },
+                        { label: "Batch", value: selectedStudent.batch },
+                      ].map((item) => (
+                        <div
+                          key={item.label}
+                          className="info-row flex justify-between py-1.5 border-b border-border last:border-0"
+                        >
+                          <span className="label text-muted-foreground text-sm">
+                            {item.label}
+                          </span>
+                          <span className="value font-medium text-sm">
+                            {item.value}
+                          </span>
                         </div>
                       ))}
                     </div>
@@ -294,16 +318,28 @@ export default function PrintReceipt() {
                   <div className="amount-section bg-muted/50 rounded-lg p-4">
                     <div className="space-y-2">
                       <div className="amount-row flex justify-between">
-                        <span className="amount-label text-sm text-foreground/70">Total Fee</span>
-                        <span className="amount-value font-semibold">{formatCurrency(selectedStudent.totalPayment)}</span>
+                        <span className="amount-label text-sm text-foreground/70">
+                          Total Fee
+                        </span>
+                        <span className="amount-value font-semibold">
+                          {formatCurrency(selectedStudent.totalPayment)}
+                        </span>
                       </div>
                       <div className="amount-row flex justify-between">
-                        <span className="amount-label text-sm text-foreground/70">Amount Paid</span>
-                        <span className="amount-value font-semibold text-success">{formatCurrency(selectedStudent.feeReceived)}</span>
+                        <span className="amount-label text-sm text-foreground/70">
+                          Amount Paid
+                        </span>
+                        <span className="amount-value font-semibold text-success">
+                          {formatCurrency(selectedStudent.feeReceived)}
+                        </span>
                       </div>
                       <div className="amount-row total flex justify-between border-t-2 border-primary pt-3 mt-3">
-                        <span className="amount-label text-sm font-medium">Balance Due</span>
-                        <span className="amount-value text-lg font-bold text-primary">{formatCurrency(selectedStudent.pending)}</span>
+                        <span className="amount-label text-sm font-medium">
+                          Balance Due
+                        </span>
+                        <span className="amount-value text-lg font-bold text-primary">
+                          {formatCurrency(selectedStudent.pending)}
+                        </span>
                       </div>
                     </div>
                   </div>
@@ -319,7 +355,7 @@ export default function PrintReceipt() {
                 {/* Footer */}
                 <div className="footer text-center p-4 border-t border-border text-xs text-muted-foreground">
                   <p>Date: {selectedStudent.date}</p>
-                  <p className="mt-1">Thank you for choosing Ideoversity!</p>
+                  <p className="mt-1">Thank you for choosing software!</p>
                 </div>
               </div>
             </div>
@@ -334,8 +370,8 @@ export default function PrintReceipt() {
                   <Printer className="w-4 h-4 mr-2" />
                   Print Receipt
                 </Button>
-                <Button 
-                  variant="outline" 
+                <Button
+                  variant="outline"
                   className="w-full"
                   onClick={() => setSelectedStudent(null)}
                 >
@@ -350,8 +386,12 @@ export default function PrintReceipt() {
                 <div className="p-3 bg-muted/50 rounded-lg">
                   <div className="flex justify-between items-center">
                     <div>
-                      <p className="font-medium">{formatCurrency(selectedStudent.feeReceived)}</p>
-                      <p className="text-xs text-muted-foreground">{selectedStudent.lastPaidDate || selectedStudent.date}</p>
+                      <p className="font-medium">
+                        {formatCurrency(selectedStudent.feeReceived)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedStudent.lastPaidDate || selectedStudent.date}
+                      </p>
                     </div>
                     <span className="text-xs px-2 py-1 bg-success/10 text-success rounded">
                       {selectedStudent.method}
@@ -369,7 +409,8 @@ export default function PrintReceipt() {
           <Search className="w-12 h-12 mx-auto text-muted-foreground/50 mb-4" />
           <h3 className="text-lg font-semibold mb-2">Search for a Student</h3>
           <p className="text-muted-foreground">
-            Enter a name, phone number, or CNIC to find a student and generate their receipt
+            Enter a name, phone number, or CNIC to find a student and generate
+            their receipt
           </p>
         </div>
       )}
