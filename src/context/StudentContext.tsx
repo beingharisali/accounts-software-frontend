@@ -1,205 +1,92 @@
-import React, { createContext, useContext, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Student } from '@/types/student';
+import axios from 'axios';
+import { toast } from 'sonner';
+
+// Backend Base URL
+const API_URL = 'http://localhost:5000/api/students';
 
 interface StudentContextType {
   students: Student[];
-  addStudents: (newStudents: Student[]) => void;
-  updateStudent: (id: string, data: Partial<Student>) => void;
-  deleteStudent: (id: string) => void;
+  fetchStudents: () => Promise<void>;
+  addStudents: (newStudents: Student[]) => Promise<void>;
+  updateStudent: (id: string, data: Partial<Student>) => Promise<void>;
+  deleteStudent: (id: string) => Promise<void>;
 }
 
 const StudentContext = createContext<StudentContextType | undefined>(undefined);
 
-// Sample data for demonstration
-const sampleStudents: Student[] = [
-  {
-    id: '1',
-    date: '2024-01-15',
-    status: 'NEW',
-    name: 'Ahmed Khan',
-    course: 'Digital Marketing',
-    batch: 'DM-2024-01',
-    number: '03001234567',
-    email: 'ahmed@email.com',
-    address: 'Lahore, Pakistan',
-    cnic: '35201-1234567-1',
-    totalPayment: 50000,
-    feeReceived: 25000,
-    pending: 25000,
-    firstInstalDueDate: '2024-01-15',
-    secondInstalDueDate: '2024-02-15',
-    thirdInstalDueDate: '2024-03-15',
-    method: 'JazzCash',
-    paymentId: 'JZ123456',
-    receiptId: 'RCP001',
-    csrName: 'Ali Raza',
-    officer: 'M. Hassan',
-    branch: 'Lahore Main',
-  },
-  {
-    id: '2',
-    date: '2024-01-16',
-    status: 'FULL PAID',
-    name: 'Sara Ali',
-    course: 'Website Development',
-    batch: 'WD-2024-01',
-    number: '03009876543',
-    email: 'sara@email.com',
-    address: 'Karachi, Pakistan',
-    cnic: '42101-9876543-2',
-    totalPayment: 60000,
-    feeReceived: 60000,
-    pending: 0,
-    firstInstalDueDate: '2024-01-16',
-    secondInstalDueDate: '',
-    thirdInstalDueDate: '',
-    method: 'Bank',
-    paymentId: 'BNK789012',
-    receiptId: 'RCP002',
-    csrName: 'Fatima Noor',
-    officer: 'K. Ahmed',
-    branch: 'Karachi DHA',
-  },
-  {
-    id: '3',
-    date: '2024-01-17',
-    status: 'RECOVERY',
-    name: 'Usman Malik',
-    course: 'Digital Marketing',
-    batch: 'DM-2024-01',
-    number: '03211234567',
-    email: 'usman@email.com',
-    address: 'Islamabad, Pakistan',
-    cnic: '61101-5678901-3',
-    totalPayment: 50000,
-    feeReceived: 15000,
-    pending: 35000,
-    firstInstalDueDate: '2024-01-17',
-    secondInstalDueDate: '2024-02-17',
-    thirdInstalDueDate: '2024-03-17',
-    method: 'Easypaisa',
-    paymentId: 'EP456789',
-    receiptId: 'RCP003',
-    csrName: 'Zainab Shah',
-    officer: 'A. Khan',
-    branch: 'Islamabad F-7',
-  },
-  {
-    id: '4',
-    date: '2024-01-18',
-    status: 'DROP',
-    name: 'Ayesha Tariq',
-    course: 'Website Development',
-    batch: 'WD-2024-01',
-    number: '03331234567',
-    email: 'ayesha@email.com',
-    address: 'Multan, Pakistan',
-    cnic: '36302-2345678-4',
-    totalPayment: 60000,
-    feeReceived: 20000,
-    pending: 40000,
-    firstInstalDueDate: '2024-01-18',
-    secondInstalDueDate: '2024-02-18',
-    thirdInstalDueDate: '2024-03-18',
-    method: 'Cash',
-    paymentId: 'CSH001',
-    receiptId: 'RCP004',
-    csrName: 'Bilal Ahmed',
-    officer: 'S. Malik',
-    branch: 'Multan Cantt',
-  },
-  {
-    id: '5',
-    date: '2024-01-19',
-    status: 'FREEZE',
-    name: 'Hassan Raza',
-    course: 'Digital Marketing',
-    batch: 'DM-2024-02',
-    number: '03451234567',
-    email: 'hassan@email.com',
-    address: 'Faisalabad, Pakistan',
-    cnic: '33100-3456789-5',
-    totalPayment: 50000,
-    feeReceived: 30000,
-    pending: 20000,
-    firstInstalDueDate: '2024-01-19',
-    secondInstalDueDate: '2024-02-19',
-    thirdInstalDueDate: '2024-03-19',
-    method: 'JazzCash',
-    paymentId: 'JZ789012',
-    receiptId: 'RCP005',
-    csrName: 'Nadia Khan',
-    officer: 'R. Ali',
-    branch: 'Faisalabad D-Ground',
-  },
-];
-
 export function StudentProvider({ children }: { children: ReactNode }) {
-  const [students, setStudents] = useState<Student[]>(sampleStudents);
+  const [students, setStudents] = useState<Student[]>([]);
 
-  const addStudents = (newStudents: Student[]) => {
-    setStudents(prev => {
-      const updatedStudents = [...prev];
-      const today = new Date().toISOString().split('T')[0];
-      
-      newStudents.forEach(newStudent => {
-        if (newStudent.status === 'RECOVERY') {
-          // Find existing student with same CNIC and batch
-          const existingIndex = updatedStudents.findIndex(
-            s => s.cnic === newStudent.cnic && s.batch === newStudent.batch
-          );
-          
-          if (existingIndex !== -1) {
-            // Update existing student's payment
-            const existing = updatedStudents[existingIndex];
-            const newFeeReceived = existing.feeReceived + newStudent.feeReceived;
-            const newPending = existing.totalPayment - newFeeReceived;
-            
-            updatedStudents[existingIndex] = {
-              ...existing,
-              feeReceived: newFeeReceived,
-              pending: Math.max(0, newPending),
-              status: newPending <= 0 ? 'FULL PAID' : 'RECOVERY',
-              // Update payment info with latest recovery
-              method: newStudent.method,
-              paymentId: newStudent.paymentId,
-              receiptId: newStudent.receiptId,
-              lastPaidDate: today,
-            };
-          } else {
-            // No matching student found, add as new
-            updatedStudents.push({
-              ...newStudent,
-              lastPaidDate: today,
-            });
-          }
-        } else {
-          // For non-RECOVERY entries, add as new student
-          updatedStudents.push({
-            ...newStudent,
-            lastPaidDate: newStudent.feeReceived > 0 ? today : undefined,
-          });
-        }
-      });
-      
-      return updatedStudents;
-    });
+  // 1. Backend se data fetch karna aur id map karna
+  const fetchStudents = async () => {
+    try {
+      const response = await axios.get(`${API_URL}/all`);
+      // MongoDB ki _id ko frontend ki id field mein map kar rahay hain
+      const mappedData = response.data.map((s: any) => ({
+        ...s,
+        id: s._id,
+      }));
+      setStudents(mappedData);
+    } catch (error) {
+      console.error("Fetch Error:", error);
+      toast.error("Server se data load nahi ho saka");
+    }
   };
 
-  const updateStudent = (id: string, data: Partial<Student>) => {
-    setStudents(prev =>
-      prev.map(student =>
-        student.id === id ? { ...student, ...data } : student
-      )
-    );
+  // Initial load par data mangwao
+  useEffect(() => {
+    fetchStudents();
+  }, []);
+
+  // 2. Add Students (Backend logic handles RECOVERY/CNIC checks)
+  const addStudents = async (newStudents: Student[]) => {
+    try {
+      await axios.post(`${API_URL}/bulk-add`, newStudents);
+      await fetchStudents(); // List refresh karo
+      toast.success(`${newStudents.length} entries successfully saved!`);
+    } catch (error: any) {
+      console.error("Add Error:", error);
+      toast.error(error.response?.data?.message || "Data save karne mein masla hua");
+      throw error;
+    }
   };
 
-  const deleteStudent = (id: string) => {
-    setStudents(prev => prev.filter(student => student.id !== id));
+  // 3. Update Student (Database update)
+  const updateStudent = async (id: string, data: Partial<Student>) => {
+    try {
+      // Backend ko _id bhejni hai (jo frontend mein id ke naam se hai)
+      await axios.put(`${API_URL}/update/${id}`, data);
+      await fetchStudents(); // Refresh data
+      toast.success("Record update ho gaya");
+    } catch (error) {
+      console.error("Update Error:", error);
+      toast.error("Update fail ho gaya");
+    }
+  };
+
+  // 4. Delete Student (Database removal)
+  const deleteStudent = async (id: string) => {
+    try {
+      await axios.delete(`${API_URL}/delete/${id}`);
+      // UI se foran remove kar do
+      setStudents(prev => prev.filter(student => (student as any).id !== id));
+      toast.success("Entry delete kar di gayi");
+    } catch (error) {
+      console.error("Delete Error:", error);
+      toast.error("Delete fail ho gaya");
+    }
   };
 
   return (
-    <StudentContext.Provider value={{ students, addStudents, updateStudent, deleteStudent }}>
+    <StudentContext.Provider value={{
+      students,
+      fetchStudents,
+      addStudents,
+      updateStudent,
+      deleteStudent
+    }}>
       {children}
     </StudentContext.Provider>
   );

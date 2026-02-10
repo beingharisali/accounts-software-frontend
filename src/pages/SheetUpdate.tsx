@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Student, COLUMNS } from '@/types/student';
 import { toast } from 'sonner';
 import { ClipboardPaste, Upload, Trash2, Save } from 'lucide-react';
+import axios from 'axios'; // Make sure to install: npm install axios
 
 const EMPTY_ROW: Partial<Student> = {
   date: '',
@@ -30,7 +31,8 @@ const EMPTY_ROW: Partial<Student> = {
 };
 
 export default function SheetUpdate() {
-  const { addStudents } = useStudents();
+  // fetchStudents ko context se nikaalna zaroori hai takay submit ke baad list update ho
+  const { fetchStudents } = useStudents();
   const [rows, setRows] = useState<Partial<Student>[]>([{ ...EMPTY_ROW }]);
   const tableRef = useRef<HTMLTableElement>(null);
 
@@ -38,7 +40,7 @@ export default function SheetUpdate() {
     e.preventDefault();
     const pastedText = e.clipboardData.getData('text');
     const lines = pastedText.split('\n').filter(line => line.trim());
-    
+
     const newRows: Partial<Student>[] = lines.map((line) => {
       const cells = line.split('\t');
       return {
@@ -97,42 +99,51 @@ export default function SheetUpdate() {
     toast.info('Sheet cleared');
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     const validRows = rows.filter(row => row.name && row.name.trim() !== '');
-    
+
     if (validRows.length === 0) {
       toast.error('Please add at least one valid entry');
       return;
     }
 
-    const studentsToAdd: Student[] = validRows.map((row, index) => ({
-      id: `new-${Date.now()}-${index}`,
+    // Backend compatible object mapping
+    const studentsToAdd = validRows.map((row) => ({
       date: row.date || new Date().toISOString().split('T')[0],
       status: row.status || 'NEW',
-      name: row.name || '',
-      course: row.course || '',
-      batch: row.batch || '',
-      number: row.number || '',
-      email: row.email || '',
-      address: row.address || '',
-      cnic: row.cnic || '',
-      totalPayment: row.totalPayment || 0,
-      feeReceived: row.feeReceived || 0,
-      pending: row.pending || 0,
-      firstInstalDueDate: row.firstInstalDueDate || '',
-      secondInstalDueDate: row.secondInstalDueDate || '',
-      thirdInstalDueDate: row.thirdInstalDueDate || '',
-      method: row.method || 'Cash',
-      paymentId: row.paymentId || '',
-      receiptId: row.receiptId || '',
-      csrName: row.csrName || '',
-      officer: row.officer || '',
-      branch: row.branch || '',
+      name: row.name,
+      course: row.course,
+      batch: row.batch,
+      number: row.number,
+      email: row.email,
+      address: row.address,
+      cnic: row.cnic,
+      totalPayment: Number(row.totalPayment),
+      feeReceived: Number(row.feeReceived),
+      pending: Number(row.pending),
+      firstInstalDueDate: row.firstInstalDueDate,
+      secondInstalDueDate: row.secondInstalDueDate,
+      thirdInstalDueDate: row.thirdInstalDueDate,
+      method: row.method,
+      paymentId: row.paymentId,
+      receiptId: row.receiptId,
+      csrName: row.csrName,
+      officer: row.officer,
+      branch: row.branch,
     }));
 
-    addStudents(studentsToAdd);
-    setRows([{ ...EMPTY_ROW }]);
-    toast.success(`Successfully added ${studentsToAdd.length} entries`);
+    try {
+      const response = await axios.post('http://localhost:5000/api/students/bulk-add', studentsToAdd);
+
+      if (response.status === 201) {
+        toast.success(`Successfully added ${studentsToAdd.length} entries to Database`);
+        setRows([{ ...EMPTY_ROW }]); // Reset UI table
+        if (fetchStudents) fetchStudents(); // Refresh master list in context
+      }
+    } catch (error: any) {
+      console.error("Backend Error:", error);
+      toast.error(error.response?.data?.message || 'Error connecting to server');
+    }
   };
 
   const fieldKeys: (keyof Student)[] = [
@@ -163,8 +174,7 @@ export default function SheetUpdate() {
         </div>
       </div>
 
-      {/* Paste Area */}
-      <div 
+      <div
         className="border-2 border-dashed border-border rounded-xl p-6 bg-muted/30 text-center cursor-pointer hover:bg-muted/50 transition-colors"
         onPaste={handlePaste}
         tabIndex={0}
@@ -176,7 +186,6 @@ export default function SheetUpdate() {
         </p>
       </div>
 
-      {/* Data Table */}
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin">
           <table ref={tableRef} className="w-full border-collapse min-w-[2000px]">
