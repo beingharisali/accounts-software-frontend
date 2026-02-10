@@ -4,7 +4,7 @@ import { useRole } from '@/context/RoleContext';
 import { StatusBadge } from '@/components/common/StatusBadge';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { 
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -47,18 +47,29 @@ export default function MasterEntry() {
   const filteredStudents = useMemo(() => {
     return students
       .filter(student => {
-        const matchesSearch = 
-          student.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          student.number.includes(searchTerm) ||
-          student.cnic.includes(searchTerm) ||
-          student.email.toLowerCase().includes(searchTerm.toLowerCase());
-        
+        // Safe access to strings to prevent crashes if data is missing
+        const name = student.name?.toLowerCase() || '';
+        const number = student.number || '';
+        const cnic = student.cnic || '';
+        const email = student.email?.toLowerCase() || '';
+        const search = searchTerm.toLowerCase();
+
+        const matchesSearch =
+          name.includes(search) ||
+          number.includes(search) ||
+          cnic.includes(search) ||
+          email.includes(search);
+
         const matchesStatus = statusFilter === 'all' || student.status === statusFilter;
         const matchesCourse = courseFilter === 'all' || student.course === courseFilter;
-        
+
         return matchesSearch && matchesStatus && matchesCourse;
       })
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      .sort((a, b) => {
+        const dateA = a.date ? new Date(a.date).getTime() : 0;
+        const dateB = b.date ? new Date(b.date).getTime() : 0;
+        return dateB - dateA;
+      });
   }, [students, searchTerm, statusFilter, courseFilter]);
 
   const handleExport = () => {
@@ -71,25 +82,41 @@ export default function MasterEntry() {
     setEditForm({ ...student });
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (editingStudent && editForm) {
-      updateStudent(editingStudent.id, editForm);
-      setEditingStudent(null);
-      setEditForm({});
-      toast.success('Student updated successfully');
+      try {
+        // Ensure numeric fields are correctly typed
+        const finalData = {
+          ...editForm,
+          totalPayment: Number(editForm.totalPayment) || 0,
+          feeReceived: Number(editForm.feeReceived) || 0,
+          pending: Number(editForm.pending) || 0,
+        };
+
+        await updateStudent(editingStudent.id, finalData);
+        setEditingStudent(null);
+        setEditForm({});
+        toast.success('Student updated successfully');
+      } catch (error) {
+        toast.error('Failed to update student');
+      }
     }
   };
 
-  const handleDelete = (id: string) => {
-    deleteStudent(id);
-    toast.success('Student deleted successfully');
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteStudent(id);
+      toast.success('Student deleted successfully');
+    } catch (error) {
+      toast.error('Failed to delete student');
+    }
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="page-header mb-1">Master Entry Sheet</h1>
+          <h1 className="page-header mb-1 text-2xl font-bold">Master Entry Sheet</h1>
           <p className="text-sm text-muted-foreground">
             View and manage all entries sorted by date
           </p>
@@ -103,31 +130,27 @@ export default function MasterEntry() {
       </div>
 
       {/* Filters */}
-      <div className="flex flex-wrap gap-4">
+      <div className="flex flex-wrap gap-4 bg-muted/20 p-4 rounded-lg border">
         <div className="relative flex-1 min-w-[250px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="Search by name, number, CNIC, or email..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9"
+            className="pl-9 bg-background"
           />
         </div>
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[150px]">
+          <SelectTrigger className="w-[150px] bg-background">
             <SelectValue placeholder="Status" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="NEW">New</SelectItem>
-            <SelectItem value="RECOVERY">Recovery</SelectItem>
-            <SelectItem value="FULL PAID">Full Paid</SelectItem>
-            <SelectItem value="DROP">Drop</SelectItem>
-            <SelectItem value="FREEZE">Freeze</SelectItem>
+            {STATUS_OPTIONS.map(opt => <SelectItem key={opt} value={opt}>{opt}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={courseFilter} onValueChange={setCourseFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-[180px] bg-background">
             <SelectValue placeholder="Course" />
           </SelectTrigger>
           <SelectContent>
@@ -139,82 +162,71 @@ export default function MasterEntry() {
       </div>
 
       {/* Results count */}
-      <div className="text-sm text-muted-foreground">
-        Showing {filteredStudents.length} of {students.length} entries
+      <div className="text-sm font-medium">
+        Showing <span className="text-primary">{filteredStudents.length}</span> of {students.length} entries
       </div>
 
       {/* Data Table */}
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="overflow-x-auto scrollbar-thin">
-          <table className="data-table min-w-[2000px]">
+          <table className="data-table min-w-[2000px] w-full text-left">
             <thead>
-              <tr>
-                <th>Date</th>
-                <th>Status</th>
-                <th>Name</th>
-                <th>Course</th>
-                <th>Batch</th>
-                <th>Number</th>
-                <th>Email</th>
-                <th>Address</th>
-                <th>CNIC</th>
-                <th className="text-right">Total</th>
-                <th className="text-right">Received</th>
-                <th className="text-right">Pending</th>
-                <th>1st Due</th>
-                <th>2nd Due</th>
-                <th>3rd Due</th>
-                <th>Method</th>
-                <th>Payment ID</th>
-                <th>Receipt ID</th>
-                <th>CSR</th>
-                <th>Officer</th>
-                <th>Branch</th>
-                {(hasPermission('canEdit') || hasPermission('canDelete')) && <th>Actions</th>}
+              <tr className="bg-muted/50 border-b">
+                <th className="p-3">Date</th>
+                <th className="p-3">Status</th>
+                <th className="p-3">Name</th>
+                <th className="p-3">Course</th>
+                <th className="p-3">Batch</th>
+                <th className="p-3">Number</th>
+                <th className="p-3">Email</th>
+                <th className="p-3">Address</th>
+                <th className="p-3">CNIC</th>
+                <th className="p-3 text-right">Total</th>
+                <th className="p-3 text-right">Received</th>
+                <th className="p-3 text-right">Pending</th>
+                <th className="p-3">1st Due</th>
+                <th className="p-3">2nd Due</th>
+                <th className="p-3">3rd Due</th>
+                <th className="p-3">Method</th>
+                <th className="p-3">Payment ID</th>
+                <th className="p-3">Receipt ID</th>
+                <th className="p-3">CSR</th>
+                <th className="p-3">Officer</th>
+                <th className="p-3">Branch</th>
+                {(hasPermission('canEdit') || hasPermission('canDelete')) && <th className="p-3">Actions</th>}
               </tr>
             </thead>
             <tbody>
               {filteredStudents.map(student => (
-                <tr key={student.id}>
-                  <td className="font-medium whitespace-nowrap">{student.date}</td>
-                  <td><StatusBadge status={student.status} /></td>
-                  <td className="font-medium">{student.name}</td>
-                  <td>{student.course}</td>
-                  <td>{student.batch}</td>
-                  <td className="whitespace-nowrap">{student.number}</td>
-                  <td>{student.email}</td>
-                  <td className="max-w-[150px] truncate" title={student.address}>
-                    {student.address}
-                  </td>
-                  <td className="whitespace-nowrap">{student.cnic}</td>
-                  <td className="text-right font-medium">{formatCurrency(student.totalPayment)}</td>
-                  <td className="text-right text-success font-medium">
-                    {formatCurrency(student.feeReceived)}
-                  </td>
-                  <td className="text-right text-warning font-medium">
-                    {formatCurrency(student.pending)}
-                  </td>
-                  <td className="whitespace-nowrap">{student.firstInstalDueDate}</td>
-                  <td className="whitespace-nowrap">{student.secondInstalDueDate}</td>
-                  <td className="whitespace-nowrap">{student.thirdInstalDueDate}</td>
-                  <td>{student.method}</td>
-                  <td>{student.paymentId}</td>
-                  <td>{student.receiptId}</td>
-                  <td>{student.csrName}</td>
-                  <td>{student.officer}</td>
-                  <td>{student.branch}</td>
+                <tr key={student.id} className="border-b hover:bg-muted/30 transition-colors">
+                  <td className="p-3 whitespace-nowrap">{student.date}</td>
+                  <td className="p-3"><StatusBadge status={student.status} /></td>
+                  <td className="p-3 font-medium">{student.name}</td>
+                  <td className="p-3">{student.course}</td>
+                  <td className="p-3">{student.batch}</td>
+                  <td className="p-3 whitespace-nowrap">{student.number}</td>
+                  <td className="p-3">{student.email}</td>
+                  <td className="p-3 max-w-[150px] truncate" title={student.address}>{student.address}</td>
+                  <td className="p-3 whitespace-nowrap">{student.cnic}</td>
+                  <td className="p-3 text-right">{formatCurrency(student.totalPayment)}</td>
+                  <td className="p-3 text-right text-success font-medium">{formatCurrency(student.feeReceived)}</td>
+                  <td className="p-3 text-right text-warning font-medium">{formatCurrency(student.pending)}</td>
+                  <td className="p-3 whitespace-nowrap">{student.firstInstalDueDate}</td>
+                  <td className="p-3 whitespace-nowrap">{student.secondInstalDueDate}</td>
+                  <td className="p-3 whitespace-nowrap">{student.thirdInstalDueDate}</td>
+                  <td className="p-3">{student.method}</td>
+                  <td className="p-3">{student.paymentId}</td>
+                  <td className="p-3">{student.receiptId}</td>
+                  <td className="p-3">{student.csrName}</td>
+                  <td className="p-3">{student.officer}</td>
+                  <td className="p-3">{student.branch}</td>
                   {(hasPermission('canEdit') || hasPermission('canDelete')) && (
-                    <td>
+                    <td className="p-3">
                       <div className="flex items-center gap-1">
                         {hasPermission('canEdit') && (
                           <Dialog>
                             <DialogTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="icon" 
-                                className="h-8 w-8"
-                                onClick={() => handleEdit(student)}
-                              >
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleEdit(student)}>
                                 <Edit className="w-4 h-4" />
                               </Button>
                             </DialogTrigger>
@@ -223,99 +235,58 @@ export default function MasterEntry() {
                                 <DialogTitle>Edit Student - {student.name}</DialogTitle>
                               </DialogHeader>
                               <div className="grid grid-cols-2 gap-4 py-4">
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Name</label>
-                                  <Input
-                                    value={editForm.name || ''}
-                                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
-                                  />
+                                  <Input value={editForm.name || ''} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} />
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Status</label>
-                                  <Select 
-                                    value={editForm.status} 
-                                    onValueChange={(value) => setEditForm({...editForm, status: value as Student['status']})}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
+                                  <Select value={editForm.status} onValueChange={(v) => setEditForm({ ...editForm, status: v as any })}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                      {STATUS_OPTIONS.map(status => (
-                                        <SelectItem key={status} value={status}>{status}</SelectItem>
-                                      ))}
+                                      {STATUS_OPTIONS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                                     </SelectContent>
                                   </Select>
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Phone</label>
-                                  <Input
-                                    value={editForm.number || ''}
-                                    onChange={(e) => setEditForm({...editForm, number: e.target.value})}
-                                  />
+                                  <Input value={editForm.number || ''} onChange={(e) => setEditForm({ ...editForm, number: e.target.value })} />
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Email</label>
-                                  <Input
-                                    value={editForm.email || ''}
-                                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
-                                  />
+                                  <Input value={editForm.email || ''} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} />
                                 </div>
-                                <div className="col-span-2">
+                                <div className="col-span-2 space-y-1">
                                   <label className="text-sm font-medium">Address</label>
-                                  <Input
-                                    value={editForm.address || ''}
-                                    onChange={(e) => setEditForm({...editForm, address: e.target.value})}
-                                  />
+                                  <Input value={editForm.address || ''} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} />
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Total Payment</label>
-                                  <Input
-                                    type="number"
-                                    value={editForm.totalPayment || 0}
-                                    onChange={(e) => setEditForm({...editForm, totalPayment: parseFloat(e.target.value) || 0})}
-                                  />
+                                  <Input type="number" value={editForm.totalPayment || 0} onChange={(e) => setEditForm({ ...editForm, totalPayment: parseFloat(e.target.value) || 0 })} />
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Fee Received</label>
-                                  <Input
-                                    type="number"
-                                    value={editForm.feeReceived || 0}
-                                    onChange={(e) => {
-                                      const received = parseFloat(e.target.value) || 0;
-                                      setEditForm({
-                                        ...editForm, 
-                                        feeReceived: received,
-                                        pending: (editForm.totalPayment || 0) - received
-                                      });
-                                    }}
-                                  />
+                                  <Input type="number" value={editForm.feeReceived || 0} onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setEditForm({ ...editForm, feeReceived: val, pending: (Number(editForm.totalPayment) || 0) - val });
+                                  }} />
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Payment Method</label>
-                                  <Select 
-                                    value={editForm.method} 
-                                    onValueChange={(value) => setEditForm({...editForm, method: value as Student['method']})}
-                                  >
-                                    <SelectTrigger>
-                                      <SelectValue />
-                                    </SelectTrigger>
+                                  <Select value={editForm.method} onValueChange={(v) => setEditForm({ ...editForm, method: v as any })}>
+                                    <SelectTrigger><SelectValue /></SelectTrigger>
                                     <SelectContent>
-                                      {PAYMENT_METHODS.map(method => (
-                                        <SelectItem key={method} value={method}>{method}</SelectItem>
-                                      ))}
+                                      {PAYMENT_METHODS.map(m => <SelectItem key={m} value={m}>{m}</SelectItem>)}
                                     </SelectContent>
                                   </Select>
                                 </div>
-                                <div>
+                                <div className="space-y-1">
                                   <label className="text-sm font-medium">Payment ID</label>
-                                  <Input
-                                    value={editForm.paymentId || ''}
-                                    onChange={(e) => setEditForm({...editForm, paymentId: e.target.value})}
-                                  />
+                                  <Input value={editForm.paymentId || ''} onChange={(e) => setEditForm({ ...editForm, paymentId: e.target.value })} />
                                 </div>
                               </div>
                               <DialogFooter>
-                                <Button onClick={handleSaveEdit}>Save Changes</Button>
+                                <Button onClick={handleSaveEdit} className="w-full">Save Changes</Button>
                               </DialogFooter>
                             </DialogContent>
                           </Dialog>
@@ -323,25 +294,20 @@ export default function MasterEntry() {
                         {hasPermission('canDelete') && (
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:text-destructive">
+                              <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10">
                                 <Trash2 className="w-4 h-4" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
                               <AlertDialogHeader>
-                                <AlertDialogTitle>Delete Student</AlertDialogTitle>
+                                <AlertDialogTitle>Delete Student Record?</AlertDialogTitle>
                                 <AlertDialogDescription>
-                                  Are you sure you want to delete {student.name}? This action cannot be undone.
+                                  Are you sure you want to delete {student.name}? This action is permanent.
                                 </AlertDialogDescription>
                               </AlertDialogHeader>
                               <AlertDialogFooter>
                                 <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleDelete(student.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Delete
-                                </AlertDialogAction>
+                                <AlertDialogAction onClick={() => handleDelete(student.id)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
                               </AlertDialogFooter>
                             </AlertDialogContent>
                           </AlertDialog>
@@ -355,7 +321,7 @@ export default function MasterEntry() {
           </table>
         </div>
         {filteredStudents.length === 0 && (
-          <div className="p-8 text-center text-muted-foreground">
+          <div className="p-12 text-center text-muted-foreground bg-muted/5">
             No entries found matching your criteria
           </div>
         )}
