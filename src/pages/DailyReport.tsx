@@ -1,19 +1,20 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useStudents } from '@/context/StudentContext';
 import { useRole } from '@/context/RoleContext';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
-import { 
+import axios from 'axios';
+import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { 
-  Users, 
-  TrendingUp, 
-  TrendingDown, 
+import {
+  Users,
+  TrendingUp,
+  TrendingDown,
   DollarSign,
   Smartphone,
   CreditCard,
@@ -39,6 +40,34 @@ export default function DailyReport() {
     String(new Date().getFullYear())
   );
 
+  // --- NEW: State for Backend Stats (Cards Sync) ---
+  const [backendStats, setBackendStats] = useState({
+    newAdmissions: 0,
+    recoveryCount: 0,
+    drops: 0,
+    totalCollection: 0,
+    jazzCash: 0,
+    easyPaisa: 0,
+    bankTransfer: 0,
+    cash: 0
+  });
+
+  // --- NEW: Fetch logic to sync with Backend ---
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const monthName = MONTHS[parseInt(selectedMonth)];
+        const response = await axios.get(`http://localhost:5000/api/students/daily-report`, {
+          params: { month: monthName, year: selectedYear }
+        });
+        setBackendStats(response.data);
+      } catch (error) {
+        console.error("Error fetching daily report:", error);
+      }
+    };
+    fetchStats();
+  }, [selectedMonth, selectedYear, students]); // students dependency added for auto-refresh on add/edit
+
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
     return Array.from({ length: 5 }, (_, i) => currentYear - i);
@@ -47,10 +76,11 @@ export default function DailyReport() {
   const dailyData = useMemo(() => {
     const month = parseInt(selectedMonth);
     const year = parseInt(selectedYear);
-    
+
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const data: Record<string, {
-      date: string;
+      date: string; // Internal matching key (DD-MM-YYYY)
+      displayDate: string; // ISO format for JS Date processing
       newAdmissions: number;
       recovery: number;
       drop: number;
@@ -61,11 +91,18 @@ export default function DailyReport() {
       cash: number;
     }> = {};
 
-    // Initialize all days
+    // Initialize all days matching the backend DD-MM-YYYY format
     for (let day = 1; day <= daysInMonth; day++) {
-      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      data[dateStr] = {
-        date: dateStr,
+      const dd = String(day).padStart(2, '0');
+      const mm = String(month + 1).padStart(2, '0');
+      const yyyy = String(year);
+
+      const customDateKey = `${dd}-${mm}-${yyyy}`;
+      const isoDate = `${yyyy}-${mm}-${dd}`;
+
+      data[customDateKey] = {
+        date: customDateKey,
+        displayDate: isoDate,
         newAdmissions: 0,
         recovery: 0,
         drop: 0,
@@ -77,36 +114,34 @@ export default function DailyReport() {
       };
     }
 
-    // Populate with student data
+    // Populate with student data (Syncing with backend custom date format)
     students.forEach(student => {
-      const studentDate = student.date;
+      // Prioritize student.date which is the DD-MM-YYYY string from backend
+      const studentDate = student.date || student.lastPaidDate;
+
       if (data[studentDate]) {
+        const amount = Number(student.feeReceived) || 0;
+
         if (student.status === 'NEW') data[studentDate].newAdmissions++;
         if (student.status === 'RECOVERY') data[studentDate].recovery++;
         if (student.status === 'DROP') data[studentDate].drop++;
-        
-        data[studentDate].totalPayment += student.feeReceived;
-        
-        switch (student.method) {
-          case 'JazzCash':
-            data[studentDate].jazzCash += student.feeReceived;
-            break;
-          case 'Easypaisa':
-            data[studentDate].easypaisa += student.feeReceived;
-            break;
-          case 'Bank':
-            data[studentDate].bank += student.feeReceived;
-            break;
-          case 'Cash':
-            data[studentDate].cash += student.feeReceived;
-            break;
-        }
+
+        data[studentDate].totalPayment += amount;
+
+        // Match methods exactly as stored in backend
+        const method = student.method?.toLowerCase();
+        if (method === 'jazzcash') data[studentDate].jazzCash += amount;
+        if (method === 'easypaisa') data[studentDate].easypaisa += amount;
+        if (method === 'bank transfer' || method === 'bank') data[studentDate].bank += amount;
+        if (method === 'cash') data[studentDate].cash += amount;
       }
     });
 
-    return Object.values(data).sort((a, b) => a.date.localeCompare(b.date));
+    // Sort by ISO date string to ensure chronological order in table
+    return Object.values(data).sort((a, b) => a.displayDate.localeCompare(b.displayDate));
   }, [students, selectedMonth, selectedYear]);
 
+  // Keep monthlyTotals for table footer sync
   const monthlyTotals = useMemo(() => {
     return dailyData.reduce((acc, day) => ({
       newAdmissions: acc.newAdmissions + day.newAdmissions,
@@ -118,14 +153,8 @@ export default function DailyReport() {
       bank: acc.bank + day.bank,
       cash: acc.cash + day.cash,
     }), {
-      newAdmissions: 0,
-      recovery: 0,
-      drop: 0,
-      totalPayment: 0,
-      jazzCash: 0,
-      easypaisa: 0,
-      bank: 0,
-      cash: 0,
+      newAdmissions: 0, recovery: 0, drop: 0, totalPayment: 0,
+      jazzCash: 0, easypaisa: 0, bank: 0, cash: 0,
     });
   }, [dailyData]);
 
@@ -137,7 +166,7 @@ export default function DailyReport() {
     ]);
     rows.push(['Total', monthlyTotals.newAdmissions, monthlyTotals.recovery, monthlyTotals.drop,
       monthlyTotals.totalPayment, monthlyTotals.jazzCash, monthlyTotals.easypaisa, monthlyTotals.bank, monthlyTotals.cash]);
-    
+
     const csv = [headers, ...rows].map(row => row.join('\t')).join('\n');
     const blob = new Blob([csv], { type: 'application/vnd.ms-excel' });
     const url = URL.createObjectURL(blob);
@@ -191,53 +220,53 @@ export default function DailyReport() {
         </div>
       </div>
 
-      {/* Monthly Summary */}
+      {/* Monthly Summary Cards - Sync with fresh Backend data */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="New Admissions"
-          value={monthlyTotals.newAdmissions}
+          value={backendStats.newAdmissions}
           icon={<Users className="w-5 h-5 text-primary" />}
           variant="primary"
         />
         <StatCard
           title="Recovery"
-          value={monthlyTotals.recovery}
+          value={backendStats.recoveryCount}
           icon={<TrendingUp className="w-5 h-5 text-success" />}
           variant="success"
         />
         <StatCard
           title="Drops"
-          value={monthlyTotals.drop}
+          value={backendStats.drops}
           icon={<TrendingDown className="w-5 h-5 text-destructive" />}
           variant="destructive"
         />
         <StatCard
           title="Total Collection"
-          value={formatCurrency(monthlyTotals.totalPayment)}
+          value={formatCurrency(backendStats.totalCollection)}
           icon={<DollarSign className="w-5 h-5 text-accent" />}
         />
       </div>
 
-      {/* Payment Method Breakdown */}
+      {/* Payment Method Breakdown - Sync with fresh Backend data */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="JazzCash"
-          value={formatCurrency(monthlyTotals.jazzCash)}
+          value={formatCurrency(backendStats.jazzCash)}
           icon={<Smartphone className="w-5 h-5 text-warning" />}
         />
         <StatCard
           title="Easypaisa"
-          value={formatCurrency(monthlyTotals.easypaisa)}
+          value={formatCurrency(backendStats.easyPaisa)}
           icon={<CreditCard className="w-5 h-5 text-success" />}
         />
         <StatCard
           title="Bank Transfer"
-          value={formatCurrency(monthlyTotals.bank)}
+          value={formatCurrency(backendStats.bankTransfer)}
           icon={<Building className="w-5 h-5 text-primary" />}
         />
         <StatCard
           title="Cash"
-          value={formatCurrency(monthlyTotals.cash)}
+          value={formatCurrency(backendStats.cash)}
           icon={<Banknote className="w-5 h-5 text-accent" />}
         />
       </div>
@@ -266,12 +295,12 @@ export default function DailyReport() {
             </thead>
             <tbody>
               {dailyData.map(day => {
-                const hasData = day.newAdmissions > 0 || day.recovery > 0 || 
-                               day.drop > 0 || day.totalPayment > 0;
+                const hasData = day.newAdmissions > 0 || day.recovery > 0 ||
+                  day.drop > 0 || day.totalPayment > 0;
                 return (
                   <tr key={day.date} className={!hasData ? 'opacity-50' : ''}>
-                    <td className="font-medium">
-                      {new Date(day.date).toLocaleDateString('en-US', {
+                    <td className="font-medium text-nowrap">
+                      {new Date(day.displayDate).toLocaleDateString('en-US', {
                         weekday: 'short',
                         day: 'numeric',
                       })}
@@ -317,7 +346,7 @@ export default function DailyReport() {
               })}
             </tbody>
             <tfoot>
-              <tr className="bg-muted/50 font-semibold">
+              <tr className="bg-muted/50 font-semibold border-t">
                 <td>Total</td>
                 <td className="text-center">{monthlyTotals.newAdmissions}</td>
                 <td className="text-center">{monthlyTotals.recovery}</td>
