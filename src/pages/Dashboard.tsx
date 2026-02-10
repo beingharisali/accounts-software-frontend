@@ -20,9 +20,8 @@ export default function Dashboard() {
 
   const stats = useMemo(() => {
     // Local date handling for accuracy
-    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+    const today = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
     const todayStudents = students.filter(s => s.date === today);
-
     return {
       totalStudents: students.length,
       totalPayment: students.reduce((sum, s) => sum + (Number(s.feeReceived) || 0), 0),
