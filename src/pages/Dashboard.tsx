@@ -19,25 +19,45 @@ export default function Dashboard() {
   const { currentUser, hasPermission } = useRole();
 
   const stats = useMemo(() => {
-    // Local date handling for accuracy
-    const today = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
-    const todayStudents = students.filter(s => s.date === today);
+    // 1. Precise Date Handling (Dashes and Slashes both supported)
+    const d = new Date();
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+
+    const todayDash = `${day}-${month}-${year}`; // 11-02-2026
+    const todaySlash = `${day}/${month}/${year}`; // 11/02/2026
+
+    // Filter students for today's stats
+    const todayStudents = students.filter(s =>
+      s.date === todayDash || s.date === todaySlash
+    );
+
     return {
       totalStudents: students.length,
       totalPayment: students.reduce((sum, s) => sum + (Number(s.feeReceived) || 0), 0),
-      pendingAmount: students.reduce((sum, s) => sum + (Number(s.pending) || 0), 0),
-      newAdmissions: students.filter(s => s.status === 'NEW').length,
-      recoveryCount: students.filter(s => s.status === 'RECOVERY').length,
-      dropCount: students.filter(s => s.status === 'DROP').length,
-      fullPaidCount: students.filter(s => s.status === 'FULL PAID').length,
-      todayAdmissions: todayStudents.filter(s => s.status === 'NEW').length,
+      pendingAmount: students.reduce((sum, s: any) => sum + (Number(s.pending || (Number(s.totalFee) - Number(s.feeReceived))) || 0), 0), newAdmissions: students.filter(s => s.status?.toUpperCase() === 'NEW').length,
+      recoveryCount: students.filter(s => s.status?.toUpperCase() === 'RECOVERY').length,
+      dropCount: students.filter(s => s.status?.toUpperCase() === 'DROP').length,
+      fullPaidCount: students.filter(s => s.status?.toUpperCase() === 'FULL PAID').length,
+
+      // Today's High-Level Stats
+      todayAdmissions: todayStudents.filter(s => s.status?.toUpperCase() === 'NEW').length,
       todayCollection: todayStudents.reduce((sum, s) => sum + (Number(s.feeReceived) || 0), 0),
     };
   }, [students]);
 
   const recentStudents = useMemo(() => {
     return [...students]
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .sort((a, b) => {
+        // Safe sorting for DD-MM-YYYY or DD/MM/YYYY
+        const parseDate = (dateStr: string) => {
+          if (!dateStr) return 0;
+          const parts = dateStr.includes('-') ? dateStr.split('-') : dateStr.split('/');
+          return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+        };
+        return parseDate(b.date) - parseDate(a.date);
+      })
       .slice(0, 5);
   }, [students]);
 
