@@ -4,7 +4,8 @@ import { Button } from '@/components/ui/button';
 import { Student, COLUMNS } from '@/types/student';
 import { toast } from 'sonner';
 import { ClipboardPaste, Upload, Trash2, Save } from 'lucide-react';
-import axios from 'axios'; // Make sure to install: npm install axios
+// ✅ CHANGE: 'axios' ki import hata di kyunke ab hum 'api.ts' use karenge
+import api from '@/lib/api';
 
 const EMPTY_ROW: Partial<Student> = {
   date: '',
@@ -31,7 +32,6 @@ const EMPTY_ROW: Partial<Student> = {
 };
 
 export default function SheetUpdate() {
-  // fetchStudents ko context se nikaalna zaroori hai takay submit ke baad list update ho
   const { fetchStudents } = useStudents();
   const [rows, setRows] = useState<Partial<Student>[]>([{ ...EMPTY_ROW }]);
   const tableRef = useRef<HTMLTableElement>(null);
@@ -107,7 +107,6 @@ export default function SheetUpdate() {
       return;
     }
 
-    // Backend compatible object mapping
     const studentsToAdd = validRows.map((row) => ({
       date: row.date || new Date().toISOString().split('T')[0],
       status: row.status || 'NEW',
@@ -133,12 +132,14 @@ export default function SheetUpdate() {
     }));
 
     try {
-      const response = await axios.post('http://localhost:5000/api/students/bulk-add', studentsToAdd);
+      // ✅ UPDATED: Ab humne localhost ka pura URL hata kar sirf endpoint likha hai
+      // Kyunke baseURL 'api.ts' mein already define hai
+      const response = await api.post('/students/bulk-add', studentsToAdd);
 
-      if (response.status === 201) {
+      if (response.status === 201 || response.status === 200) {
         toast.success(`Successfully added ${studentsToAdd.length} entries to Database`);
-        setRows([{ ...EMPTY_ROW }]); // Reset UI table
-        if (fetchStudents) fetchStudents(); // Refresh master list in context
+        setRows([{ ...EMPTY_ROW }]);
+        if (fetchStudents) fetchStudents();
       }
     } catch (error: any) {
       console.error("Backend Error:", error);

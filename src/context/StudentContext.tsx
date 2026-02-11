@@ -1,9 +1,8 @@
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { Student } from '@/types/student';
-import axios from 'axios';
-import { toast } from 'sonner';
 
-const API_URL = 'http://localhost:5000/api/students';
+import api from '@/lib/api';
+import { toast } from 'sonner';
 
 interface StudentContextType {
   students: Student[];
@@ -24,7 +23,7 @@ export function StudentProvider({ children }: { children: ReactNode }) {
   const fetchStudents = async () => {
     setIsLoading(true);
     try {
-      const response = await axios.get(`${API_URL}/all`);
+      const response = await api.get('/students/all');
       const mappedData = response.data.map((s: any) => ({
         ...s,
         id: s._id || s.id,
@@ -47,7 +46,7 @@ export function StudentProvider({ children }: { children: ReactNode }) {
   const addStudents = async (newStudents: Student[]) => {
     setIsLoading(true);
     try {
-      await axios.post(`${API_URL}/bulk-add`, newStudents);
+      await api.post('/students/bulk-add', newStudents);
       await fetchStudents(); // Refresh complete list
       toast.success(`${newStudents.length} entries successfully saved!`);
     } catch (error: any) {
@@ -64,7 +63,7 @@ export function StudentProvider({ children }: { children: ReactNode }) {
   const updateStudent = async (id: string, data: Partial<Student>) => {
     try {
       // Backend expects the MongoDB _id (which we stored as id)
-      await axios.put(`${API_URL}/update/${id}`, data);
+      await api.put(`/students/update/${id}`, data);
 
       // Optimistic Update: Local state ko turant update karein taaki UI fast lage
       setStudents(prev =>
@@ -81,7 +80,7 @@ export function StudentProvider({ children }: { children: ReactNode }) {
   // 4. Delete Student (Database removal)
   const deleteStudent = async (id: string) => {
     try {
-      await axios.delete(`${API_URL}/delete/${id}`);
+      await api.delete(`/students/delete/${id}`);
 
       // UI se foran remove karein
       setStudents(prev => prev.filter(student => student.id !== id));
