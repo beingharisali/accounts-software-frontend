@@ -1,11 +1,11 @@
-import { useState, useRef, ClipboardEvent } from 'react';
+import { useState, useRef, ClipboardEvent, ChangeEvent } from 'react';
 import { useStudents } from '@/context/StudentContext';
 import { Button } from '@/components/ui/button';
 import { Student, COLUMNS } from '@/types/student';
 import { toast } from 'sonner';
-import { ClipboardPaste, Upload, Trash2, Save } from 'lucide-react';
-// ✅ CHANGE: 'axios' ki import hata di kyunke ab hum 'api.ts' use karenge
-import api from '@/lib/api';
+import { ClipboardPaste, Upload, Trash2, Save, FileSpreadsheet } from 'lucide-react';
+import api from '../lib/api';
+import * as XLSX from 'xlsx';
 
 const EMPTY_ROW: Partial<Student> = {
   date: '',
@@ -35,7 +35,59 @@ export default function SheetUpdate() {
   const { fetchStudents } = useStudents();
   const [rows, setRows] = useState<Partial<Student>[]>([{ ...EMPTY_ROW }]);
   const tableRef = useRef<HTMLTableElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const handleFileUpload = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary' });
+        const wsname = wb.SheetNames[0];
+        const ws = wb.Sheets[wsname];
+
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+        const newRows: Partial<Student>[] = data.slice(1).map((cells) => ({
+          date: String(cells[0] || ''),
+          status: (cells[1] as Student['status']) || 'NEW',
+          name: String(cells[2] || ''),
+          course: String(cells[3] || ''),
+          batch: String(cells[4] || ''),
+          number: String(cells[5] || ''),
+          email: String(cells[6] || ''),
+          address: String(cells[7] || ''),
+          cnic: String(cells[8] || ''),
+          totalPayment: parseFloat(cells[9]) || 0,
+          feeReceived: parseFloat(cells[10]) || 0,
+          pending: parseFloat(cells[11]) || 0,
+          firstInstalDueDate: String(cells[12] || ''),
+          secondInstalDueDate: String(cells[13] || ''),
+          thirdInstalDueDate: String(cells[14] || ''),
+          method: (cells[15] as Student['method']) || 'Cash',
+          paymentId: String(cells[16] || ''),
+          receiptId: String(cells[17] || ''),
+          csrName: String(cells[18] || ''),
+          officer: String(cells[19] || ''),
+          branch: String(cells[20] || ''),
+        }));
+
+        if (newRows.length > 0) {
+          setRows(newRows);
+          toast.success(`Imported ${newRows.length} rows from Excel file`);
+        }
+      } catch (err) {
+        toast.error("Error reading Excel file. Please check the format.");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = ''; // Reset input
+  };
+
+  // --- Original Logic: Paste from Clipboard ---
   const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
     e.preventDefault();
     const pastedText = e.clipboardData.getData('text');
@@ -78,9 +130,9 @@ export default function SheetUpdate() {
     setRows(prev => {
       const updated = [...prev];
       if (field === 'totalPayment' || field === 'feeReceived' || field === 'pending') {
-        (updated[rowIndex] as Record<string, unknown>)[field] = parseFloat(value) || 0;
+        (updated[rowIndex] as any)[field] = parseFloat(value) || 0;
       } else {
-        (updated[rowIndex] as Record<string, unknown>)[field] = value;
+        (updated[rowIndex] as any)[field] = value;
       }
       return updated;
     });
@@ -132,10 +184,7 @@ export default function SheetUpdate() {
     }));
 
     try {
-      // ✅ UPDATED: Ab humne localhost ka pura URL hata kar sirf endpoint likha hai
-      // Kyunke baseURL 'api.ts' mein already define hai
       const response = await api.post('/students/bulk-add', studentsToAdd);
-
       if (response.status === 201 || response.status === 200) {
         toast.success(`Successfully added ${studentsToAdd.length} entries to Database`);
         setRows([{ ...EMPTY_ROW }]);
@@ -160,10 +209,24 @@ export default function SheetUpdate() {
         <div>
           <h1 className="page-header mb-1">Sheet Update</h1>
           <p className="text-sm text-muted-foreground">
-            Copy data from Excel and paste here, or enter manually
+            Copy from Excel (Ctrl+V) or directly upload an Excel file
           </p>
         </div>
         <div className="flex gap-2">
+          {/* ✅ Hidden File Input for Excel */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            className="hidden"
+            accept=".xlsx, .xls, .csv"
+            onChange={handleFileUpload}
+          />
+
+          <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Import Excel
+          </Button>
+
           <Button variant="outline" onClick={clearAll}>
             <Trash2 className="w-4 h-4 mr-2" />
             Clear All
@@ -183,7 +246,7 @@ export default function SheetUpdate() {
         <ClipboardPaste className="w-10 h-10 mx-auto text-muted-foreground mb-3" />
         <p className="text-sm font-medium">Click here and paste (Ctrl+V) data from Excel</p>
         <p className="text-xs text-muted-foreground mt-1">
-          Data should be in tab-separated format with columns matching the table below
+          Or use the "Import Excel" button to select a file directly
         </p>
       </div>
 
