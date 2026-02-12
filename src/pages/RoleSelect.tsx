@@ -1,7 +1,11 @@
+import { useState } from "react";
 import { useRole } from "@/context/RoleContext";
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GraduationCap, Shield, User, Users } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { GraduationCap, Shield, User, Users, ArrowLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import api from "@/lib/api"; // Ensure this matches your axios instance
 
 const roles = [
   {
@@ -28,12 +32,42 @@ const roles = [
 ] as const;
 
 export default function RoleSelect() {
-  const { setRole } = useRole();
+  const { setCurrentUser } = useRole();
   const navigate = useNavigate();
 
-  const handleRoleSelect = (role: "admin" | "officer" | "csr") => {
-    setRole(role);
-    navigate("/");
+  // State to manage which role is currently being logged in
+  const [selectedRole, setSelectedRole] = useState<typeof roles[number] | null>(null);
+  const [formData, setFormData] = useState({ email: "", password: "" });
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+
+    try {
+      const response = await api.post("/auth/login", formData);
+      const { token, user } = response.data;
+
+      // Check if the user's real role matches the selected card (Security check)
+      if (user.role.toLowerCase() !== selectedRole?.id) {
+        toast.error(`This account is not registered as ${selectedRole?.title}`);
+        setLoading(false);
+        return;
+      }
+
+      // Save to localStorage & Context
+      localStorage.setItem("token", token);
+      localStorage.setItem("userData", JSON.stringify(user));
+      localStorage.setItem("userRole", user.role.toLowerCase());
+
+      setCurrentUser(user);
+      toast.success(`Welcome back, ${user.name}`);
+      navigate("/");
+    } catch (error: any) {
+      toast.error(error.response?.data?.msg || "Login failed. Check credentials.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -50,38 +84,88 @@ export default function RoleSelect() {
           </p>
         </div>
 
-        {/* Role Selection */}
+        {/* Dynamic Card Container */}
         <div className="bg-card rounded-2xl border border-border shadow-lg p-8">
-          <h2 className="text-xl font-semibold text-center mb-6">
-            Select Your Role
-          </h2>
+          {!selectedRole ? (
+            <>
+              <h2 className="text-xl font-semibold text-center mb-6">
+                Select Your Role to Login
+              </h2>
+              <div className="grid md:grid-cols-3 gap-4 animate-in fade-in zoom-in duration-300">
+                {roles.map((role) => {
+                  const Icon = role.icon;
+                  return (
+                    <button
+                      key={role.id}
+                      onClick={() => setSelectedRole(role)}
+                      className="group p-6 rounded-xl border-2 border-border bg-card hover:border-primary hover:shadow-lg transition-all text-left"
+                    >
+                      <div className={`w-12 h-12 rounded-xl ${role.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                        <Icon className="w-6 h-6" />
+                      </div>
+                      <h3 className="font-semibold text-lg mb-2">{role.title}</h3>
+                      <p className="text-sm text-muted-foreground">
+                        {role.description}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            /* Login Form View */
+            <div className="max-w-md mx-auto animate-in slide-in-from-right-4 duration-300">
+              <button
+                onClick={() => setSelectedRole(null)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary mb-6 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" /> Back to roles
+              </button>
 
-          <div className="grid md:grid-cols-3 gap-4">
-            {roles.map((role) => {
-              const Icon = role.icon;
-              return (
-                <button
-                  key={role.id}
-                  onClick={() => handleRoleSelect(role.id)}
-                  className="group p-6 rounded-xl border-2 border-border bg-card hover:border-primary hover:shadow-lg transition-all text-left"
-                >
-                  <div
-                    className={`w-12 h-12 rounded-xl ${role.color} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
-                  >
-                    <Icon className="w-6 h-6" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2">{role.title}</h3>
-                  <p className="text-sm text-muted-foreground">
-                    {role.description}
-                  </p>
-                </button>
-              );
-            })}
+              <div className="flex items-center gap-4 mb-8">
+                <div className={`w-12 h-12 rounded-xl ${selectedRole.color} flex items-center justify-center`}>
+                  <selectedRole.icon className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-bold">{selectedRole.title} Login</h2>
+                  <p className="text-sm text-muted-foreground">Enter your credentials below</p>
+                </div>
+              </div>
+
+              <form onSubmit={handleLogin} className="space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Email Address</label>
+                  <Input
+                    type="email"
+                    placeholder="name@organization.com"
+                    value={formData.email}
+                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Password</label>
+                  <Input
+                    type="password"
+                    placeholder="••••••••"
+                    value={formData.password}
+                    onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                    required
+                  />
+                </div>
+                <Button className="w-full mt-2" disabled={loading}>
+                  {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Login as {selectedRole.title}
+                </Button>
+              </form>
+            </div>
+          )}
+
+          <div className="text-center mt-8">
+            <p className="text-xs text-muted-foreground">
+              Don't have an Admin account? <button onClick={() => navigate('/signup')} className="text-primary hover:underline font-medium">Register Initial Admin</button>
+            </p>
           </div>
-
-          <p className="text-center text-xs text-muted-foreground mt-6">
-            This is a demo mode. In production, use proper authentication.
-          </p>
         </div>
       </div>
     </div>

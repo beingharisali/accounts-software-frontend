@@ -18,30 +18,42 @@ import MonthlyReport from "./pages/MonthlyReport";
 import Recovery from "./pages/Recovery";
 import Schedule from "./pages/Schedule";
 import RoleSelect from "./pages/RoleSelect";
+import AdminSignup from "./pages/AdminSignup";
+import UserManagement from "./pages/UserManagement";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Protected route wrapper
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+// Protected Route Logic
+function ProtectedRoute({ children, allowedRoles }: { children: React.ReactNode, allowedRoles?: string[] }) {
   const { currentUser } = useRole();
-  
+
   if (!currentUser) {
     return <Navigate to="/login" replace />;
   }
-  
+
+  // Yahan role check ho raha hai. Agar list di gayi hai aur user ka role usmein nahi hai, to wapas bhej do.
+  if (allowedRoles && !allowedRoles.includes(currentUser.role)) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
-// App routes component
 function AppRoutes() {
   const { currentUser } = useRole();
-  
+
   return (
     <Routes>
+      {/* Auth Routes */}
+      <Route path="/signup" element={
+        currentUser ? <Navigate to="/" replace /> : <AdminSignup />
+      } />
       <Route path="/login" element={
         currentUser ? <Navigate to="/" replace /> : <RoleSelect />
       } />
+
+      {/* Shared Routes (Admin, Officer, CSR) */}
       <Route path="/" element={
         <ProtectedRoute>
           <MainLayout>
@@ -49,62 +61,84 @@ function AppRoutes() {
           </MainLayout>
         </ProtectedRoute>
       } />
+
+      {/* Admissions & Data Entry - Roles updated to lowercase to match backend/context */}
       <Route path="/sheet-update" element={
-        <ProtectedRoute>
+        <ProtectedRoute allowedRoles={['admin', 'officer', 'csr']}>
           <MainLayout>
             <SheetUpdate />
           </MainLayout>
         </ProtectedRoute>
       } />
-      <Route path="/daily-report" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <DailyReport />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
+
       <Route path="/master-entry" element={
-        <ProtectedRoute>
+        <ProtectedRoute allowedRoles={['admin', 'officer', 'csr']}>
           <MainLayout>
             <MasterEntry />
           </MainLayout>
         </ProtectedRoute>
       } />
-      <Route path="/courses" element={
-        <ProtectedRoute>
+
+      {/* Admin ONLY Routes */}
+      <Route path="/daily-report" element={
+        <ProtectedRoute allowedRoles={['admin']}>
           <MainLayout>
-            <CourseBreakdown />
+            <DailyReport />
           </MainLayout>
         </ProtectedRoute>
       } />
-      <Route path="/schedule" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <Schedule />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
-      <Route path="/print-receipt" element={
-        <ProtectedRoute>
-          <MainLayout>
-            <PrintReceipt />
-          </MainLayout>
-        </ProtectedRoute>
-      } />
+
       <Route path="/monthly-report" element={
-        <ProtectedRoute>
+        <ProtectedRoute allowedRoles={['admin']}>
           <MainLayout>
             <MonthlyReport />
           </MainLayout>
         </ProtectedRoute>
       } />
+
+      <Route path="/admin/users" element={
+        <ProtectedRoute allowedRoles={['admin']}>
+          <MainLayout>
+            <UserManagement />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Course & Schedule Management */}
+      <Route path="/courses" element={
+        <ProtectedRoute allowedRoles={['admin', 'officer', 'csr']}>
+          <MainLayout>
+            <CourseBreakdown />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      <Route path="/schedule" element={
+        <ProtectedRoute allowedRoles={['admin', 'officer', 'csr']}>
+          <MainLayout>
+            <Schedule />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
+      {/* Financial & Recovery */}
+      <Route path="/print-receipt" element={
+        <ProtectedRoute allowedRoles={['admin', 'officer']}>
+          <MainLayout>
+            <PrintReceipt />
+          </MainLayout>
+        </ProtectedRoute>
+      } />
+
       <Route path="/recovery" element={
-        <ProtectedRoute>
+        <ProtectedRoute allowedRoles={['admin', 'officer', 'csr']}>
           <MainLayout>
             <Recovery />
           </MainLayout>
         </ProtectedRoute>
       } />
+
+      {/* Fallback */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
