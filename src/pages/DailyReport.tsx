@@ -3,7 +3,7 @@ import { useStudents } from '@/context/StudentContext';
 import { useRole } from '@/context/RoleContext';
 import { StatCard } from '@/components/common/StatCard';
 import { Button } from '@/components/ui/button';
-import axios from 'axios';
+import api from '@/lib/api';
 import {
   Select,
   SelectContent,
@@ -40,7 +40,7 @@ export default function DailyReport() {
     String(new Date().getFullYear())
   );
 
-  // --- NEW: State for Backend Stats (Cards Sync) ---
+  // --- State for Backend Stats (Cards Sync) ---
   const [backendStats, setBackendStats] = useState({
     newAdmissions: 0,
     recoveryCount: 0,
@@ -52,12 +52,13 @@ export default function DailyReport() {
     cash: 0
   });
 
-  // --- NEW: Fetch logic to sync with Backend ---
+  // --- Fetch logic to sync with Backend ---
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const monthName = MONTHS[parseInt(selectedMonth)];
-        const response = await axios.get(`http://localhost:5000/api/students/daily-report`, {
+        // UPDATE: Localhost URL hata kar dynamic endpoint use kiya gaya hai
+        const response = await api.get(`/students/daily-report`, {
           params: { month: monthName, year: selectedYear }
         });
         setBackendStats(response.data);
@@ -66,7 +67,7 @@ export default function DailyReport() {
       }
     };
     fetchStats();
-  }, [selectedMonth, selectedYear, students]); // students dependency added for auto-refresh on add/edit
+  }, [selectedMonth, selectedYear, students]);
 
   const years = useMemo(() => {
     const currentYear = new Date().getFullYear();
@@ -79,8 +80,8 @@ export default function DailyReport() {
 
     const daysInMonth = new Date(year, month + 1, 0).getDate();
     const data: Record<string, {
-      date: string; // Internal matching key (DD-MM-YYYY)
-      displayDate: string; // ISO format for JS Date processing
+      date: string;
+      displayDate: string;
       newAdmissions: number;
       recovery: number;
       drop: number;
@@ -91,7 +92,6 @@ export default function DailyReport() {
       cash: number;
     }> = {};
 
-    // Initialize all days matching the backend DD-MM-YYYY format
     for (let day = 1; day <= daysInMonth; day++) {
       const dd = String(day).padStart(2, '0');
       const mm = String(month + 1).padStart(2, '0');
@@ -114,9 +114,7 @@ export default function DailyReport() {
       };
     }
 
-    // Populate with student data (Syncing with backend custom date format)
     students.forEach(student => {
-      // Prioritize student.date which is the DD-MM-YYYY string from backend
       const studentDate = student.date || student.lastPaidDate;
 
       if (data[studentDate]) {
@@ -128,7 +126,6 @@ export default function DailyReport() {
 
         data[studentDate].totalPayment += amount;
 
-        // Match methods exactly as stored in backend
         const method = student.method?.toLowerCase();
         if (method === 'jazzcash') data[studentDate].jazzCash += amount;
         if (method === 'easypaisa') data[studentDate].easypaisa += amount;
@@ -137,11 +134,9 @@ export default function DailyReport() {
       }
     });
 
-    // Sort by ISO date string to ensure chronological order in table
     return Object.values(data).sort((a, b) => a.displayDate.localeCompare(b.displayDate));
   }, [students, selectedMonth, selectedYear]);
 
-  // Keep monthlyTotals for table footer sync
   const monthlyTotals = useMemo(() => {
     return dailyData.reduce((acc, day) => ({
       newAdmissions: acc.newAdmissions + day.newAdmissions,
@@ -220,7 +215,6 @@ export default function DailyReport() {
         </div>
       </div>
 
-      {/* Monthly Summary Cards - Sync with fresh Backend data */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="New Admissions"
@@ -247,7 +241,6 @@ export default function DailyReport() {
         />
       </div>
 
-      {/* Payment Method Breakdown - Sync with fresh Backend data */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <StatCard
           title="JazzCash"
@@ -271,7 +264,6 @@ export default function DailyReport() {
         />
       </div>
 
-      {/* Daily Data Table */}
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="p-4 border-b border-border">
           <h2 className="section-header mb-0">
