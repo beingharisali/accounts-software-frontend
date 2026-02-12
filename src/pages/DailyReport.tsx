@@ -40,7 +40,6 @@ export default function DailyReport() {
     String(new Date().getFullYear())
   );
 
-  // --- State for Backend Stats (Cards Sync) ---
   const [backendStats, setBackendStats] = useState({
     newAdmissions: 0,
     recoveryCount: 0,
@@ -52,12 +51,10 @@ export default function DailyReport() {
     cash: 0
   });
 
-  // --- Fetch logic to sync with Backend ---
   useEffect(() => {
     const fetchStats = async () => {
       try {
         const monthName = MONTHS[parseInt(selectedMonth)];
-        // UPDATE: Localhost URL hata kar dynamic endpoint use kiya gaya hai
         const response = await api.get(`/students/daily-report`, {
           params: { month: monthName, year: selectedYear }
         });
@@ -92,6 +89,7 @@ export default function DailyReport() {
       cash: number;
     }> = {};
 
+    // 1. Initialize empty days for the month
     for (let day = 1; day <= daysInMonth; day++) {
       const dd = String(day).padStart(2, '0');
       const mm = String(month + 1).padStart(2, '0');
@@ -114,23 +112,34 @@ export default function DailyReport() {
       };
     }
 
+    // 2. Map students to dates (Enhanced Logic)
     students.forEach(student => {
-      const studentDate = student.date || student.lastPaidDate;
+      let studentDate = student.date || student.lastPaidDate;
+      if (!studentDate) return;
 
-      if (data[studentDate]) {
+      let lookupKey = studentDate;
+
+      // ✅ FIX: Normalize ISO (yyyy-mm-dd) to Custom (dd-mm-yyyy)
+      // Agar date 2026-02-12 hai, to isay 12-02-2026 banayein lookup ke liye
+      if (studentDate.includes('-') && studentDate.split('-')[0].length === 4) {
+        const [y, m, d] = studentDate.split('-');
+        lookupKey = `${d}-${m}-${y}`;
+      }
+
+      if (data[lookupKey]) {
         const amount = Number(student.feeReceived) || 0;
 
-        if (student.status === 'NEW') data[studentDate].newAdmissions++;
-        if (student.status === 'RECOVERY') data[studentDate].recovery++;
-        if (student.status === 'DROP') data[studentDate].drop++;
+        if (student.status === 'NEW') data[lookupKey].newAdmissions++;
+        if (student.status === 'RECOVERY') data[lookupKey].recovery++;
+        if (student.status === 'DROP') data[lookupKey].drop++;
 
-        data[studentDate].totalPayment += amount;
+        data[lookupKey].totalPayment += amount;
 
-        const method = student.method?.toLowerCase();
-        if (method === 'jazzcash') data[studentDate].jazzCash += amount;
-        if (method === 'easypaisa') data[studentDate].easypaisa += amount;
-        if (method === 'bank transfer' || method === 'bank') data[studentDate].bank += amount;
-        if (method === 'cash') data[studentDate].cash += amount;
+        const method = student.method?.toLowerCase() || '';
+        if (method === 'jazzcash') data[lookupKey].jazzCash += amount;
+        if (method === 'easypaisa') data[lookupKey].easypaisa += amount;
+        if (method === 'bank transfer' || method === 'bank') data[lookupKey].bank += amount;
+        if (method === 'cash') data[lookupKey].cash += amount;
       }
     });
 
@@ -215,55 +224,22 @@ export default function DailyReport() {
         </div>
       </div>
 
+      {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          title="New Admissions"
-          value={backendStats.newAdmissions}
-          icon={<Users className="w-5 h-5 text-primary" />}
-          variant="primary"
-        />
-        <StatCard
-          title="Recovery"
-          value={backendStats.recoveryCount}
-          icon={<TrendingUp className="w-5 h-5 text-success" />}
-          variant="success"
-        />
-        <StatCard
-          title="Drops"
-          value={backendStats.drops}
-          icon={<TrendingDown className="w-5 h-5 text-destructive" />}
-          variant="destructive"
-        />
-        <StatCard
-          title="Total Collection"
-          value={formatCurrency(backendStats.totalCollection)}
-          icon={<DollarSign className="w-5 h-5 text-accent" />}
-        />
+        <StatCard title="New Admissions" value={backendStats.newAdmissions} icon={<Users className="w-5 h-5 text-primary" />} variant="primary" />
+        <StatCard title="Recovery" value={backendStats.recoveryCount} icon={<TrendingUp className="w-5 h-5 text-success" />} variant="success" />
+        <StatCard title="Drops" value={backendStats.drops} icon={<TrendingDown className="w-5 h-5 text-destructive" />} variant="destructive" />
+        <StatCard title="Total Collection" value={formatCurrency(backendStats.totalCollection)} icon={<DollarSign className="w-5 h-5 text-accent" />} />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <StatCard
-          title="JazzCash"
-          value={formatCurrency(backendStats.jazzCash)}
-          icon={<Smartphone className="w-5 h-5 text-warning" />}
-        />
-        <StatCard
-          title="Easypaisa"
-          value={formatCurrency(backendStats.easyPaisa)}
-          icon={<CreditCard className="w-5 h-5 text-success" />}
-        />
-        <StatCard
-          title="Bank Transfer"
-          value={formatCurrency(backendStats.bankTransfer)}
-          icon={<Building className="w-5 h-5 text-primary" />}
-        />
-        <StatCard
-          title="Cash"
-          value={formatCurrency(backendStats.cash)}
-          icon={<Banknote className="w-5 h-5 text-accent" />}
-        />
+        <StatCard title="JazzCash" value={formatCurrency(backendStats.jazzCash)} icon={<Smartphone className="w-5 h-5 text-warning" />} />
+        <StatCard title="Easypaisa" value={formatCurrency(backendStats.easyPaisa)} icon={<CreditCard className="w-5 h-5 text-success" />} />
+        <StatCard title="Bank Transfer" value={formatCurrency(backendStats.bankTransfer)} icon={<Building className="w-5 h-5 text-primary" />} />
+        <StatCard title="Cash" value={formatCurrency(backendStats.cash)} icon={<Banknote className="w-5 h-5 text-accent" />} />
       </div>
 
+      {/* Daily Breakdown Table */}
       <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
         <div className="p-4 border-b border-border">
           <h2 className="section-header mb-0">
@@ -287,8 +263,7 @@ export default function DailyReport() {
             </thead>
             <tbody>
               {dailyData.map(day => {
-                const hasData = day.newAdmissions > 0 || day.recovery > 0 ||
-                  day.drop > 0 || day.totalPayment > 0;
+                const hasData = day.newAdmissions > 0 || day.recovery > 0 || day.drop > 0 || day.totalPayment > 0;
                 return (
                   <tr key={day.date} className={!hasData ? 'opacity-50' : ''}>
                     <td className="font-medium text-nowrap">
@@ -299,40 +274,24 @@ export default function DailyReport() {
                     </td>
                     <td className="text-center">
                       {day.newAdmissions > 0 && (
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">
-                          {day.newAdmissions}
-                        </span>
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-medium">{day.newAdmissions}</span>
                       )}
                     </td>
                     <td className="text-center">
                       {day.recovery > 0 && (
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-success/10 text-success text-xs font-medium">
-                          {day.recovery}
-                        </span>
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-success/10 text-success text-xs font-medium">{day.recovery}</span>
                       )}
                     </td>
                     <td className="text-center">
                       {day.drop > 0 && (
-                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-destructive/10 text-destructive text-xs font-medium">
-                          {day.drop}
-                        </span>
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-destructive/10 text-destructive text-xs font-medium">{day.drop}</span>
                       )}
                     </td>
-                    <td className="text-right font-medium">
-                      {day.totalPayment > 0 ? formatCurrency(day.totalPayment) : '-'}
-                    </td>
-                    <td className="text-right text-sm">
-                      {day.jazzCash > 0 ? formatCurrency(day.jazzCash) : '-'}
-                    </td>
-                    <td className="text-right text-sm">
-                      {day.easypaisa > 0 ? formatCurrency(day.easypaisa) : '-'}
-                    </td>
-                    <td className="text-right text-sm">
-                      {day.bank > 0 ? formatCurrency(day.bank) : '-'}
-                    </td>
-                    <td className="text-right text-sm">
-                      {day.cash > 0 ? formatCurrency(day.cash) : '-'}
-                    </td>
+                    <td className="text-right font-medium">{day.totalPayment > 0 ? formatCurrency(day.totalPayment) : '-'}</td>
+                    <td className="text-right text-sm">{day.jazzCash > 0 ? formatCurrency(day.jazzCash) : '-'}</td>
+                    <td className="text-right text-sm">{day.easypaisa > 0 ? formatCurrency(day.easypaisa) : '-'}</td>
+                    <td className="text-right text-sm">{day.bank > 0 ? formatCurrency(day.bank) : '-'}</td>
+                    <td className="text-right text-sm">{day.cash > 0 ? formatCurrency(day.cash) : '-'}</td>
                   </tr>
                 );
               })}
