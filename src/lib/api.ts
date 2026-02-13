@@ -1,12 +1,11 @@
 import axios from 'axios';
 
 const getBaseURL = () => {
-    const envURL = import.meta.env.VITE_API_URL;
-    if (envURL) return envURL;
+    if (import.meta.env.PROD) {
+        return 'https://accounts-software-backend.onrender.com/api/v1';
+    }
 
-    return import.meta.env.PROD
-        ? 'https://accounts-software-backend.onrender.com/api/v1'
-        : 'http://localhost:5000/api/v1';
+    return import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
 };
 
 const api = axios.create({
@@ -16,6 +15,7 @@ const api = axios.create({
     },
 });
 
+// Request Interceptor: Token add karne ke liye (Old logic preserved)
 api.interceptors.request.use(
     (config) => {
         if (typeof window !== 'undefined') {
@@ -31,7 +31,6 @@ api.interceptors.request.use(
     }
 );
 
-// Response Interceptor (Purani logic intact hai)
 api.interceptors.response.use(
     (response) => response,
     (error) => {
@@ -42,6 +41,7 @@ api.interceptors.response.use(
                 localStorage.removeItem('token');
                 localStorage.removeItem('userData');
                 localStorage.removeItem('userRole');
+                // Session expire hone par dashboard se clean exit
             }
         }
         return Promise.reject(error);
