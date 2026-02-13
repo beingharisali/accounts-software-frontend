@@ -1,10 +1,16 @@
 import axios from 'axios';
 
+const getBaseURL = () => {
+    const envURL = import.meta.env.VITE_API_URL;
+    if (envURL) return envURL;
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1';
+    return import.meta.env.PROD
+        ? 'https://accounts-software-backend.onrender.com/api/v1'
+        : 'http://localhost:5000/api/v1';
+};
 
 const api = axios.create({
-    baseURL: API_URL,
+    baseURL: getBaseURL(),
     headers: {
         'Content-Type': 'application/json',
     },
@@ -25,6 +31,7 @@ api.interceptors.request.use(
     }
 );
 
+// Response Interceptor (Purani logic intact hai)
 api.interceptors.response.use(
     (response) => response,
     (error) => {
